@@ -124,32 +124,64 @@ static void accel_handle(const struct xwii_event *event)
 
 /* IR events */
 
+#define WIDTH  1024
+#define HEIGHT 1024
+
+typedef struct {
+  float x;
+  float y;
+} point;
+
+// Swap two points
+static void swap( point & a, point & b)
+{
+  point c = a;
+  a = b;
+  b = c;
+}
+
+// Returns a point on a line defined by two points
+point ratioPoint(const point &a, const point &b, float ratio)
+{
+  point c;
+  c.x = a.x*(1.0-ratio)+b.x*(0.0+ratio);
+  c.y = a.y*(1.0-ratio)+b.y*(0.0+ratio);
+  return c;
+}
+
+template <typename T> int sgn(T val) {
+  return (T(0) < val) - (val < T(0));
+}
+
+
 static void ir_handle(const struct xwii_event *event)
 {
 	int amount_of_valid_points = 0;
-	int x[2] = {0};
-	int y[2] = {0};
+	point pt[4] = {0,0,
+                       0,0,
+                       0,0,
+                       0,0};
 	int mouse_x = 0;
 	int mouse_y = 0;
 	if (xwii_event_ir_is_valid(&event->v.abs[0])) {
 		printf("IR1: (%i,%i) ", event->v.abs[0].x, event->v.abs[0].y);
-		x[amount_of_valid_points] = event->v.abs[0].x;
-		y[amount_of_valid_points] = event->v.abs[0].y;
+		pt[amount_of_valid_points].x = event->v.abs[0].x;
+		pt[amount_of_valid_points].y = event->v.abs[0].y;
 		amount_of_valid_points++;
 	}
 
 	if ((xwii_event_ir_is_valid(&event->v.abs[1]))&&(event->v.abs[1].x!=0)&&(event->v.abs[1].y!=0)) {
 		printf("IR2: (%i,%i) ", event->v.abs[1].x, event->v.abs[1].y);
-		x[amount_of_valid_points] = event->v.abs[0].x;
-		y[amount_of_valid_points] = event->v.abs[0].y;
+		pt[amount_of_valid_points].x = event->v.abs[1].x;
+		pt[amount_of_valid_points].y = event->v.abs[1].y;
 		amount_of_valid_points++;
 	}
 
 	if ((xwii_event_ir_is_valid(&event->v.abs[2]))&&(event->v.abs[2].x!=0)&&(event->v.abs[2].y!=0)) {
 		printf("IR3: (%i,%i) ", event->v.abs[2].x, event->v.abs[2].y);
 		if (amount_of_valid_points<2) {
-			x[amount_of_valid_points] = event->v.abs[0].x;
-			y[amount_of_valid_points] = event->v.abs[0].y;
+			pt[amount_of_valid_points].x = event->v.abs[2].x;
+			pt[amount_of_valid_points].y = event->v.abs[2].y;
 			amount_of_valid_points++;
 		}
 	}
@@ -157,8 +189,8 @@ static void ir_handle(const struct xwii_event *event)
 	if ((xwii_event_ir_is_valid(&event->v.abs[3]))&&(event->v.abs[3].x!=0)&&(event->v.abs[3].y!=0)) {
 		printf("IR4: (%i,%i) ", event->v.abs[3].x, event->v.abs[3].y);
 		if (amount_of_valid_points<2) {
-			x[amount_of_valid_points] = event->v.abs[0].x;
-			y[amount_of_valid_points] = event->v.abs[0].y;
+			pt[amount_of_valid_points].x = event->v.abs[3].x;
+			pt[amount_of_valid_points].y = event->v.abs[3].y;
 			amount_of_valid_points++;
 		}
 	}
@@ -167,8 +199,8 @@ static void ir_handle(const struct xwii_event *event)
 	//Fallback wanneer er maar 1 punt gevonden is
 	//Oftewel: renze's prutsmethode :P
 	//if (amount_of_valid_points == 1) {
-		mouse_x = screen_width+5-x[0]*((screen_width+5)/1000.0);
-		mouse_y = y[0]*(screen_height/750.0);
+		mouse_x = screen_width+5-pt[0].x*((screen_width+5)/1000.0);
+		mouse_y = pt[0].y*(screen_height/750.0);
 		//printf("Mouse_y = %d*(%d/%d)\n",y[0],screen_height,1024);
 	//}
 
@@ -180,6 +212,69 @@ static void ir_handle(const struct xwii_event *event)
 	//if (amount_of_valid_points == 2) {
 		//TO-DO, spieken in de "echte" code hoe het moet
 	//}
+                
+        if(amount_of_valid_points == 4) {
+          // Sort the points to form a clockwise quadrilateral
+          {
+            bool check = true;
+            while(check)
+            {
+              check = false;
+              if(pt[0].x > pt[1].x)
+              {
+                swap(pt[0],pt[1]);
+                check = true;
+              }
+              if(pt[3].x > pt[2].x)
+              {
+                swap(pt[2],pt[3]);
+                check = true;
+              }
+              if(pt[0].y > pt[3].y)
+              {
+                swap(pt[0],pt[3]);
+                check = true;
+              }
+              if(pt[1].y > pt[2].y)
+              {
+                swap(pt[1],pt[2]);
+                check = true;
+              }
+            }
+          }
+          
+          {
+            point center = {WIDTH/2.0,HEIGHT/2.0};
+            
+            point t1, t2;
+            float step  = 1.0/2.0;
+            float ratio = 1.0/2.0;
+            
+            while(step > 1/1024)
+            {
+              t1 = ratioPoint(pt[0],pt[1],ratio);
+              t2 = ratioPoint(pt[3],pt[2],ratio);
+              step /= 2.0;
+              ratio -= step*sgn((t2.x-t1.x)*(center.y-t1.y)-(t2.y - t1.y)*(center.x-t1.x));
+            }
+            
+            mouse_x = screen_width*(ratio);
+            
+            step  = 1.0/2.0;
+            ratio = 1.0/2.0;
+            
+            while(step > 1/1024)
+            {
+              t1 = ratioPoint(pt[0],pt[3],ratio);
+              t2 = ratioPoint(pt[1],pt[2],ratio);
+              step /= 2.0;
+              ratio += step*sgn((t2.x-t1.x)*(center.y-t1.y)-(t2.y - t1.y)*(center.x-t1.x));
+            }
+            mouse_y = screen_height*(ratio);
+            
+          }
+          
+        }
 
 	if ((mode == 2)&&(amount_of_valid_points>0)) { //Simulate mouse movement in mode 2.
 		XTestFakeMotionEvent( display, -1, mouse_x, mouse_y, CurrentTime );
