@@ -196,23 +196,15 @@ static void ir_handle(const struct xwii_event *event)
 	}
 	printf("\n");
 
-	//Fallback wanneer er maar 1 punt gevonden is
-	//Oftewel: renze's prutsmethode :P
-	//if (amount_of_valid_points == 1) {
-		mouse_x = screen_width+5-pt[0].x*((screen_width+5)/1000.0);
-		mouse_y = pt[0].y*(screen_height/750.0);
-		//printf("Mouse_y = %d*(%d/%d)\n",y[0],screen_height,1024);
-	//}
+	//This method only needs one point (fallback)
+	mouse_x = screen_width+5-pt[0].x*((screen_width+5)/1000.0);
+	mouse_y = pt[0].y*(screen_height/750.0);
+	printf("Mouse tracking (1 point): %d,%d\n",mouse_x,mouse_y);
 
-	//De waarden 1000 en 750 heb ik experimenteel voor mijn situatie bepaald.
-	//De sensor geeft een waarde van 0-1023
-	//(De +5 is een offset waardoor ik bij de rand van mijn scherm kan XD )
+	if(amount_of_valid_points == 2) {
+		//To-do: add tracking code for 2 points
+	}
 
-	//Met meerdere punten werkt het beter
-	//if (amount_of_valid_points == 2) {
-		//TO-DO, spieken in de "echte" code hoe het moet
-	//}
-                
         if(amount_of_valid_points == 4) {
           // Sort the points to form a clockwise quadrilateral
           {
@@ -270,10 +262,8 @@ static void ir_handle(const struct xwii_event *event)
               step /= 2.0;
               ratio += step*sgn((t2.x-t1.x)*(center.y-t1.y)-(t2.y - t1.y)*(center.x-t1.x));
             }
-            mouse_y = screen_height*(ratio);
-            
+            mouse_y = screen_height*(ratio); 
           }
-          
         }
 
 	if ((mode == 2)&&(amount_of_valid_points>0)) { //Simulate mouse movement in mode 2.
